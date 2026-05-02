@@ -1,0 +1,82 @@
+[project]
+name = "cvyne-api"
+version = "0.1.0"
+description = "AutoApply AI — FastAPI backend"
+requires-python = ">=3.12"
+dependencies = [
+    # Web
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+    "sse-starlette>=2.1.0",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+
+    # Validation
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+
+    # AI / LLM
+    "anthropic>=0.40.0",
+    "openai>=1.56.0",
+    "google-generativeai>=0.8.0",
+    "ollama>=0.4.0",
+    "langfuse>=2.0.0",
+
+    # Browser Automation
+    "browser-use>=0.1.0",
+    "playwright>=1.49.0",
+
+    # Design Engine
+    # "open-design>=0.1.0",  # install from source: pip install git+https://github.com/nicktacular/open-design
+
+    # Templates
+    "jinja2>=3.1.4",
+
+    # Queue
+    "celery[redis]>=5.4.0",
+    "redis>=5.2.0",
+
+    # Storage
+    "aioboto3>=13.2.0",
+
+    # Security
+    "cryptography>=44.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "httpx>=0.28.0",
+
+    # Observability
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.49b0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "anyio>=4.6.0",
+    "httpx>=0.28.0",
+    "factory-boy>=3.3.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "ANN", "ASYNC"]
+ignore = ["ANN101", "ANN102"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,396 @@
+
+
+# 📄 TRD: AI Job Application Autofill + Smart CV Personalization Platform
+
+---
+
+## 1. Overview
+
+**Product Name:** AutoApply AI
+**Goal:**
+Automate job applications from links, dynamically tailor resumes (CVs) per Job Description (JD), and generate ATS-friendly, well-designed PDFs.
+
+---
+
+## 2. Core Problem
+
+Users currently:
+
+* Manually fill repetitive job forms
+* Manually tweak resumes per JD
+* Struggle with ATS optimization
+* Maintain multiple resume versions
+
+---
+
+## 3. Solution Summary
+
+A system that:
+
+1. Takes job links (LinkedIn, Greenhouse, Lever, etc.)
+2. Extracts JD
+3. Modifies base resume intelligently (without losing identity)
+4. Generates ATS + themed CVs
+5. Autofills applications via browser automation
+6. Supports multiple LLMs + API keys (BYOK)
+
+---
+
+## 4. Key Technologies
+
+### 4.1 Browser Automation
+
+* Use: browser-use
+* Purpose:
+
+  * Navigate job links
+  * Extract JD
+  * Fill forms
+  * Upload CV
+* Why:
+
+  * Agentic browser control
+  * Works with LLM loops
+
+---
+
+### 4.2 Design + CV Engine
+
+* Use: open-design
+* Capabilities:
+
+  * 19 composable design skills + 71 design systems ([GitHub][1])
+  * Export to PDF/HTML/PPTX ([Trendshift][2])
+* Purpose:
+
+  * Generate ATS-friendly CVs
+  * Themed CVs (modern, minimal, corporate)
+  * Portfolio-style resumes
+
+---
+
+### 4.3 LLM Layer (BYOK)
+
+* Supported:
+
+  * OpenAI
+  * Anthropic
+  * Gemini
+  * Local (Ollama)
+* Reason:
+
+  * open-design is model-agnostic (BYOK) ([GitHub][1])
+
+---
+
+## 5. System Architecture
+
+```
+Frontend (Next.js)
+    ↓
+Backend API (Node.js / FastAPI)
+    ↓
+-------------------------------
+|   AI Orchestrator Layer     |
+|-----------------------------|
+| - JD Extractor             |
+| - Resume Personalizer      |
+| - ATS Optimizer            |
+| - Cover Letter Generator   |
+-------------------------------
+    ↓
+-------------------------------
+| Browser Agent Layer        |
+| (browser-use)             |
+| - Navigate job links       |
+| - Autofill forms           |
+| - Upload CV                |
+-------------------------------
+    ↓
+-------------------------------
+| Design Engine              |
+| (open-design)             |
+| - CV templating            |
+| - PDF export               |
+-------------------------------
+```
+
+---
+
+## 6. Features
+
+---
+
+### 6.1 Job Link Processing
+
+**Input:**
+
+* Job URL
+
+**Flow:**
+
+1. Open link via browser-use
+2. Extract:
+
+   * Title
+   * Company
+   * Skills
+   * Experience
+3. Normalize JD
+
+---
+
+### 6.2 Resume Personalization Engine
+
+**Input:**
+
+* Base Resume (JSON structured)
+* JD
+
+**Output:**
+
+* Tailored Resume
+
+**Rules:**
+
+* Do NOT fabricate experience
+* Rephrase using JD keywords
+* Highlight matching skills
+* Adjust bullet points priority
+
+---
+
+### 6.3 ATS Optimization Engine
+
+* Keyword density optimization
+* Section standardization:
+
+  * Experience
+  * Skills
+  * Projects
+* Avoid:
+
+  * Tables
+  * Complex layouts
+
+---
+
+### 6.4 CV Design Engine
+
+Using open-design:
+
+**Modes:**
+
+1. ATS Mode (simple, text-first)
+2. Modern Mode
+3. Creative Mode
+4. Portfolio Mode
+
+**Output:**
+
+* PDF (primary)
+* HTML (optional)
+
+---
+
+### 6.5 Autofill Engine
+
+Using browser-use:
+
+**Steps:**
+
+1. Detect form fields
+2. Map fields → resume data
+3. Fill:
+
+   * Name
+   * Email
+   * Experience
+4. Upload generated CV
+5. Submit application
+
+---
+
+### 6.6 Cover Letter Generator
+
+* Uses JD + resume
+* Optional toggle
+
+---
+
+### 6.7 Model & API Configuration
+
+User UI:
+
+* Select model:
+
+  * GPT / Claude / Gemini / Local
+* Enter API key
+* Save securely (encrypted)
+
+---
+
+## 7. Data Model
+
+---
+
+### 7.1 Resume Schema
+
+```json
+{
+  "name": "",
+  "email": "",
+  "skills": [],
+  "experience": [
+    {
+      "company": "",
+      "role": "",
+      "bullets": []
+    }
+  ],
+  "projects": []
+}
+```
+
+---
+
+### 7.2 Job Schema
+
+```json
+{
+  "title": "",
+  "company": "",
+  "skills_required": [],
+  "description": ""
+}
+```
+
+---
+
+## 8. Personalization Algorithm
+
+---
+
+### Step 1: JD Parsing
+
+* Extract keywords
+* Cluster skills
+
+### Step 2: Resume Matching
+
+* Score each bullet point vs JD
+
+### Step 3: Rewrite
+
+* Inject keywords
+* Improve phrasing
+
+### Step 4: Rank
+
+* Reorder experience points
+
+---
+
+## 9. UX Flow
+
+1. Upload base resume
+2. Paste job links (bulk supported)
+3. Select:
+
+   * Model
+   * CV theme
+4. Click **Apply All**
+5. System:
+
+   * Generates CV
+   * Applies automatically
+6. Dashboard shows:
+
+   * Status
+   * Submitted / Failed
+
+---
+
+## 10. Non-Functional Requirements
+
+* Scalability: async job queue
+* Security:
+
+  * Encrypt API keys
+  * No resume data leaks
+* Performance:
+
+  * <10 sec CV generation
+* Reliability:
+
+  * Retry failed applications
+
+---
+
+## 11. Edge Cases
+
+* CAPTCHA → fallback manual
+* Unsupported job portals
+* File upload failures
+* Anti-bot detection
+
+---
+
+## 12. Future Enhancements
+
+* Chrome extension
+* Job recommendation engine
+* Interview prep integration
+* Analytics (success rate)
+
+---
+
+## 13. Risks
+
+* Anti-bot detection (major)
+* JD parsing inaccuracies
+* Over-optimization hurting authenticity
+
+---
+
+## 14. MVP Scope
+
+* Single job apply
+* 1 CV theme
+* 1 model (OpenAI)
+* Basic autofill
+
+---
+
+## 15. Advanced Version (What makes this 🔥)
+
+* Multi-model switching
+* Multi-theme CV generation
+* Agent-based auto apply loop
+* Resume memory + learning system
+
+---
+
+## 16. Differentiators
+
+* Combines:
+
+  * Automation (browser-use)
+  * Design (open-design)
+  * Intelligence (LLMs)
+* Local-first possibility (via open-design philosophy) ([GitHub][1])
+
+---
+
+## 17. Sample Flow (End-to-End)
+
+```
+User → Paste LinkedIn job URL
+→ JD extracted
+→ Resume optimized
+→ CV generated (PDF)
+→ Browser agent fills form
+→ CV uploaded
+→ Application submitted
+```
+

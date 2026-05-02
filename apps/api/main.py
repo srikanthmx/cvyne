@@ -1,0 +1,54 @@
+"""AutoApply AI — FastAPI application entrypoint."""
+
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from core.config import settings
+from core.db import init_db
+from core.telemetry import setup_telemetry
+from routers import applications, jobs, resumes, user_settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await init_db()
+    setup_telemetry()
+    yield
+
+
+app = FastAPI(
+    title="AutoApply AI",
+    version="0.1.0",
+    description="Intelligent job application automation API",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.app_env != "production" else None,
+    redoc_url=None,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["jobs"])
+app.include_router(resumes.router, prefix="/api/v1/resumes", tags=["resumes"])
+app.include_router(applications.router, prefix="/api/v1/applications", tags=["applications"])
+app.include_router(user_settings.router, prefix="/api/v1/settings", tags=["settings"])
+
+
+@app.get("/health")
+async def health() -> JSONResponse:
+    return JSONResponse({"status": "ok", "version": "0.1.0"})
+
+
+@app.get("/health/deep")
+async def health_deep() -> JSONResponse:
+    # TODO (Kiro): add DB + Redis connectivity checks
+    return JSONResponse({"status": "ok", "db": "unchecked", "redis": "unchecked"})
