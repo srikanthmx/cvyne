@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     clerk_secret_key: str
     clerk_webhook_secret: str
 
+    # External services
+    open_design_url: str = "http://localhost:4477"
+
     # Observability
     langfuse_secret_key: str = ""
     langfuse_public_key: str = ""

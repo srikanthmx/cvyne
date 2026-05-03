@@ -33,8 +33,8 @@
 3. `apps/api/models/resume.py` + `job.py` + `application.py` — Full Pydantic v2 models matching schema in CLAUDE.md.
 
 **P1 — Core Services**
-4. `apps/api/agents/browser_agent.py` — Wrap `browser-use` library. Methods: `extract_jd(url)`, `autofill_form(url, data, cv_path)`. Handle CAPTCHA with `status: requires_human`.
-5. `apps/api/agents/design_agent.py` — Wrap `open-design`. Methods: `generate_cv(resume, theme)` → returns S3 file ref. Themes: `ats`, `modern`, `creative`, `portfolio`.
+4. `apps/api/agents/browser_agent.py` — Wraps [browser-use](https://github.com/browser-use/browser-use) (Python lib). Use bundled `ChatAnthropic`/`ChatOpenAI`/`ChatGoogle`/`ChatBrowserUse` — no LangChain. Methods: `extract_jd(url)`, `autofill_form(url, data, cv_path)`. CAPTCHA → `status: requires_human`.
+5. `apps/api/agents/design_agent.py` — HTTP client for [open-design](https://github.com/nexu-io/open-design) **sidecar daemon** (not a Python lib — runs separately at `OPEN_DESIGN_URL`). Methods: `generate_cv(resume, theme)` → S3 FileRef. Themes: `ats`, `modern`, `creative`, `portfolio` mapped to design system slugs.
 6. `apps/api/services/orchestrator.py` — Compose agents into the end-to-end flow. Use async task graph, not sequential blocking calls.
 
 **P2 — Intelligence Layer**

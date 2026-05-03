@@ -46,7 +46,7 @@ class PromptTemplate:
         user = self._jinja_env.from_string(self.user_template).render(**kwargs)
         return RenderedPrompt(
             system=system,
-            messages=[{"role": "user", "content": user}],
+            user=user,
             model=self.default_model,
             max_tokens=self.max_tokens,
             temperature=self.temperature,

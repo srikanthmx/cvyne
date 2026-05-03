@@ -31,6 +31,35 @@ services:
       retries: 5
     restart: unless-stopped
 
+  flower:
+    # Celery monitoring dashboard — http://localhost:5555
+    image: mher/flower:latest
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  open-design:
+    # https://github.com/nexu-io/open-design
+    # TypeScript daemon that produces design artifacts via agent CLIs.
+    # Built locally because there is no published image yet.
+    build:
+      context: https://github.com/nexu-io/open-design.git
+      dockerfile: Dockerfile
+    ports:
+      - "4477:4477"
+    environment:
+      OPEN_DESIGN_PORT: 4477
+      OPEN_DESIGN_DATA_DIR: /data
+      # BYOK proxy receives provider keys per-request — none stored here
+    volumes:
+      - open_design_data:/data
+    restart: unless-stopped
+    profiles: ["full"]  # opt-in: requires `--profile full`
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -67,3 +96,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  open_design_data:

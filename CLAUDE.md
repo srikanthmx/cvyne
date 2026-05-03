@@ -34,22 +34,30 @@ cvyne/
 
 ## Technology Decisions (non-negotiable)
 
+**Philosophy:** lean on open-source maximally. Every row below is a battle-tested OSS choice.
+
 | Layer | Technology | Why |
 |-------|-----------|-----|
 | Frontend | Next.js 15 App Router | RSC, streaming, layouts |
 | Styling | Tailwind CSS v4 | zero-config, CSS variables |
 | Components | shadcn/ui | copy-owned, composable |
 | State | Zustand + TanStack Query v5 | server/client split |
+| API client | [openapi-fetch](https://openapi-ts.dev/) | type-safe paths from FastAPI's OpenAPI |
 | Backend | FastAPI (Python 3.12+) | async, type-safe, AI ecosystem |
 | Validation | Pydantic v2 | Python models + JSON schema |
 | ORM | SQLAlchemy 2.0 async | type-safe queries |
 | Migrations | Alembic | schema versioning |
-| Queue | Celery + Redis | async job processing |
-| Browser | browser-use | agentic form filling |
-| Design | open-design | CV generation, PDF export |
-| Auth | Clerk | JWT, OAuth, webhooks |
-| Files | S3-compatible (MinIO local) | CV/resume storage |
-| Observability | OpenTelemetry + Langfuse | LLM tracing, prompt metrics |
+| Queue | Celery + Redis + [Flower](https://flower.readthedocs.io/) | async jobs + monitoring UI |
+| **LLM router** | [**litellm**](https://github.com/BerriAI/litellm) | unified API for 100+ providers, fallback, cost tracking, caching |
+| **Structured output** | [**instructor**](https://github.com/instructor-ai/instructor) | Pydantic models from any LLM |
+| Browser | [browser-use](https://github.com/browser-use/browser-use) | agentic form filling (Python lib) |
+| Web scraping | [crawl4ai](https://github.com/unclecode/crawl4ai) | fast LLM-friendly scraping (JD fast-path) |
+| Resume parsing | [pymupdf4llm](https://github.com/pymupdf/RAG) | PDF → markdown for upload flow |
+| Design | [open-design](https://github.com/nexu-io/open-design) | CV artifact generation (TS sidecar daemon) |
+| PDF rendering | [weasyprint](https://weasyprint.org/) | HTML → PDF fallback |
+| Auth | Clerk (TODO: swap to better-auth for OSS) | JWT, OAuth, webhooks |
+| Files | MinIO (S3-compatible) | local + prod object storage |
+| Observability | [Langfuse](https://github.com/langfuse/langfuse) | wired as litellm callback — every LLM call traced automatically |
 
 ---
 
@@ -73,22 +81,31 @@ Prompts support:
 - **Variables**: Jinja2 templates with typed variable schemas
 - **Evaluation hooks**: each prompt can declare eval metrics
 
-### Multi-LLM Adapter
+### Multi-LLM Adapter (litellm-backed)
 
 ```
-apps/api/core/llm.py
+apps/api/core/llm.py  (~150 lines wrapping litellm + instructor)
 ```
 
-All LLM calls go through `LLMClient`. Never import `anthropic`, `openai`, or `google.generativeai` directly in service files.
+We do not write provider-specific code. `litellm` handles all 100+ providers via model strings (`anthropic/claude-sonnet-4-6`, `openai/gpt-4o`, etc.) and gives us:
+- Automatic fallback chains on rate-limit/outage
+- Per-call cost tracking (`response.cost`)
+- Retry with exponential backoff
+- Anthropic prompt caching (we inject `cache_control` for system prompts >1024 tokens)
+- Langfuse callback wiring (every call auto-traced)
+- Semantic response cache
+
+`instructor` wraps litellm to give us Pydantic-typed responses from any provider.
 
 ```python
 from core.llm import LLMClient
 
-client = LLMClient.from_user_config(user_id)  # loads saved BYOK key
-response = await client.complete(prompt, structured_output=ResumeSchema)
+client = await LLMClient.from_user_config(user_id)  # decrypts saved BYOK key
+resume = await client.complete(prompt, structured_output=TailoredResumeSchema)
+# Pydantic instance, validated, ready to use
 ```
 
-Supported providers: `anthropic`, `openai`, `gemini`, `ollama`
+Supported providers: `anthropic`, `openai`, `gemini`, `ollama` (and via litellm: bedrock, azure, mistral, groq, together, openrouter, vertex, cohere — all free with no code changes).
 
 ### Agent Protocol
 
@@ -217,6 +234,30 @@ pnpm dev                               # starts web + api via turbo
 5. **Observability-Native**: Every LLM call traced, every prompt version tracked
 6. **Queue-First**: All heavy operations are async jobs — UI gets SSE updates
 7. **MCP-Ready**: API is designed to be exposed as MCP tools (see `apps/api/mcp_server.py`)
+
+---
+
+---
+
+## Open-Source Integrations (read these before changing the integration code)
+
+### browser-use (Python library)
+- **Repo:** https://github.com/browser-use/browser-use
+- **Install:** `uv add browser-use && uv sync` then `uv run playwright install chromium`
+- **LLM clients:** Use **only** browser-use's bundled clients — `ChatBrowserUse`, `ChatAnthropic`, `ChatOpenAI`, `ChatGoogle`. Do NOT introduce LangChain wrappers.
+- **Lives in:** `apps/api/agents/browser_agent.py`
+
+### open-design (TypeScript sidecar daemon)
+- **Repo:** https://github.com/nexu-io/open-design
+- **Not a Python library** — it's an Express + SQLite daemon (Node 24, pnpm 10.33).
+- **Run locally:** `docker compose -f infrastructure/docker/docker-compose.yml --profile full up -d` (builds from GitHub) — OR clone repo and `pnpm tools-dev run web`.
+- **We talk to it via REST/SSE** at `OPEN_DESIGN_URL` (default `http://localhost:4477`):
+  - `POST /api/chat` (SSE) — agent CLI produces `<artifact>...</artifact>` HTML
+  - `POST /api/artifacts/save` — store artifact
+  - `GET /api/design-systems` — list available themes (DESIGN.md tokens)
+  - `POST /api/proxy/stream` — BYOK OpenAI-compatible passthrough
+- **Lives in:** `apps/api/agents/design_agent.py` (HTTP client, not lib import)
+- **Theme mapping:** `THEME_TO_DESIGN_SYSTEM` in `design_agent.py` — verify slugs against `GET /api/design-systems` on first run.
 
 ---
 

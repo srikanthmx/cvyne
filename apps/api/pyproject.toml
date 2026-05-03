@@ -19,22 +19,33 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
 
-    # AI / LLM
-    "anthropic>=0.40.0",
-    "openai>=1.56.0",
-    "google-generativeai>=0.8.0",
-    "ollama>=0.4.0",
-    "langfuse>=2.0.0",
+    # AI / LLM — litellm = unified API for 100+ providers (handles Anthropic,
+    # OpenAI, Gemini, Ollama, Bedrock, Azure, etc. with fallback + cost tracking)
+    "litellm>=1.55.0",
+    "instructor>=1.7.0",   # structured Pydantic output across providers
+    "langfuse>=2.0.0",     # tracing — wired automatically as litellm callback
 
-    # Browser Automation
+    # Web scraping for fast-path JD extraction (cheaper than browser-use)
+    "crawl4ai>=0.4.0",
+
+    # Browser Automation — https://github.com/browser-use/browser-use
+    # browser-use ships its own LLM clients (ChatBrowserUse, ChatAnthropic,
+    # ChatOpenAI, ChatGoogle) — DO NOT add LangChain wrappers.
     "browser-use>=0.1.0",
     "playwright>=1.49.0",
 
-    # Design Engine
-    # "open-design>=0.1.0",  # install from source: pip install git+https://github.com/nicktacular/open-design
+    # Design Engine — https://github.com/nexu-io/open-design
+    # NOT a Python library. Runs as a TypeScript daemon (sidecar) that we call
+    # over HTTP. Started via docker compose --profile full or cloned separately.
+    # Local PDF rendering fallback when daemon is unreachable:
+    "weasyprint>=63.0",
 
     # Templates
     "jinja2>=3.1.4",
+
+    # Resume file parsing (PDF/DOCX upload)
+    "pymupdf4llm>=0.0.17",  # LLM-friendly markdown extraction from PDFs
+    "python-docx>=1.1.0",   # .docx parsing
 
     # Queue
     "celery[redis]>=5.4.0",

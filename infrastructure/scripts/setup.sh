@@ -20,9 +20,15 @@ if [ ! -f apps/api/.env ]; then
 fi
 
 # Start infrastructure
-echo "🐳 Starting Docker services..."
+echo "🐳 Starting Docker services (postgres, redis, minio)..."
 docker compose -f infrastructure/docker/docker-compose.yml up -d --wait
 echo "✓ Postgres, Redis, MinIO running"
+
+echo ""
+echo "ℹ️  open-design daemon is opt-in (heavier build):"
+echo "    docker compose -f infrastructure/docker/docker-compose.yml --profile full up -d open-design"
+echo "    Then verify: curl http://localhost:4477/api/design-systems"
+echo ""
 
 # Node dependencies
 echo "📦 Installing Node dependencies..."
@@ -31,6 +37,10 @@ pnpm install
 # Python dependencies
 echo "🐍 Installing Python dependencies..."
 (cd apps/api && uv sync)
+
+# Playwright browsers for browser-use
+echo "🌐 Installing Playwright Chromium for browser-use..."
+(cd apps/api && uv run playwright install chromium) 2>/dev/null || echo "⚠️  Playwright install skipped"
 
 # Database migration
 echo "🗄️  Running database migrations..."

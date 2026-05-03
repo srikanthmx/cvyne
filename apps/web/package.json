@@ -21,7 +21,7 @@
     "zod": "^3.23.0",
     "react-hook-form": "^7.54.0",
     "@hookform/resolvers": "^3.9.0",
-    "ky": "^1.7.0",
+    "openapi-fetch": "^0.13.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.5.0",

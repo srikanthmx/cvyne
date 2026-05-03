@@ -4,13 +4,39 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+import tempfile
+from pathlib import Path
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from models.job import JDSchema
-from models.resume import ResumeCreateRequest, ResumeResponse, TailoredResumeSchema
+from models.resume import ResumeCreateRequest, ResumeResponse, ResumeSchema, TailoredResumeSchema
+from services.resume_parser import ResumeParserService
 from services.resume_personalizer import ResumePersonalizer
 
 router = APIRouter()
+
+
+@router.post("/parse", response_model=ResumeSchema)
+async def parse_resume_upload(file: UploadFile = File(...)) -> ResumeSchema:
+    """
+    Parse an uploaded PDF/DOCX/TXT resume into structured ResumeSchema.
+    User can edit the result before saving as their base resume.
+    """
+    if file.size and file.size > 10 * 1024 * 1024:
+        raise HTTPException(413, "File too large (max 10MB)")
+
+    suffix = Path(file.filename or "resume.pdf").suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        parser = ResumeParserService()
+        return await parser.parse_file(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 @router.post("/", response_model=ResumeResponse, status_code=201)

@@ -1,64 +1,68 @@
 /**
- * Type-safe API client — all backend calls go through here.
- * Never use raw fetch in components.
+ * Type-safe API client — generated from FastAPI's OpenAPI schema.
+ * Every call has full TypeScript types: path params, query, body, response.
+ *
+ * Regenerate types: pnpm --filter shared-types generate
  */
 
-import ky from "ky";
+import createClient from "openapi-fetch";
+import type { paths } from "shared-types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export const api = ky.create({
-  prefixUrl: `${BASE_URL}/api/v1`,
-  hooks: {
-    beforeRequest: [
-      async (request) => {
-        // Attach Clerk session token for authenticated requests
-        if (typeof window !== "undefined") {
-          const { getToken } = await import("@clerk/nextjs/client");
-          const token = await getToken();
-          if (token) request.headers.set("Authorization", `Bearer ${token}`);
-        }
-      },
-    ],
-  },
-  retry: { limit: 2, methods: ["get"] },
+export const api = createClient<paths>({
+  baseUrl: BASE_URL,
 });
 
-// Typed endpoint helpers — import these in hooks, not the raw api instance
+// Attach Clerk auth token to every request
+api.use({
+  async onRequest({ request }) {
+    if (typeof window !== "undefined") {
+      const { getToken } = await import("@clerk/nextjs/client");
+      const token = await getToken();
+      if (token) request.headers.set("Authorization", `Bearer ${token}`);
+    }
+    return request;
+  },
+});
+
+// Typed endpoint helpers — every method, path, and body is type-checked.
+// Add new endpoints here as they're built. Hooks in /hooks consume these.
+
 export const jobsApi = {
   extract: (url: string) =>
-    api.post("jobs/extract", { json: { url } }).json(),
+    api.POST("/api/v1/jobs/extract", { body: { url } }),
 
   get: (id: string) =>
-    api.get(`jobs/${id}`).json(),
+    api.GET("/api/v1/jobs/{job_id}", { params: { path: { job_id: id } } }),
 };
 
 export const resumesApi = {
-  create: (data: unknown) =>
-    api.post("resumes", { json: data }).json(),
+  parseUpload: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.POST("/api/v1/resumes/parse", { body: formData as never });
+  },
+
+  create: (body: Parameters<typeof api.POST<"/api/v1/resumes/">>[1]["body"]) =>
+    api.POST("/api/v1/resumes/", { body }),
 
   get: (id: string) =>
-    api.get(`resumes/${id}`).json(),
-
-  personalize: (id: string, jd: unknown) =>
-    api.post(`resumes/${id}/personalize`, { json: jd }).json(),
+    api.GET("/api/v1/resumes/{resume_id}", { params: { path: { resume_id: id } } }),
 };
 
 export const applicationsApi = {
-  submit: (data: unknown) =>
-    api.post("applications", { json: data }).json(),
-
-  get: (id: string) =>
-    api.get(`applications/${id}`).json(),
+  submit: (body: Parameters<typeof api.POST<"/api/v1/applications/">>[1]["body"]) =>
+    api.POST("/api/v1/applications/", { body }),
 
   streamStatus: (id: string): EventSource =>
     new EventSource(`${BASE_URL}/api/v1/applications/${id}/stream`),
 };
 
 export const settingsApi = {
-  saveApiKey: (data: unknown) =>
-    api.post("settings/api-keys", { json: data }).json(),
+  saveApiKey: (body: Parameters<typeof api.POST<"/api/v1/settings/api-keys">>[1]["body"]) =>
+    api.POST("/api/v1/settings/api-keys", { body }),
 
   listApiKeys: () =>
-    api.get("settings/api-keys").json(),
+    api.GET("/api/v1/settings/api-keys"),
 };

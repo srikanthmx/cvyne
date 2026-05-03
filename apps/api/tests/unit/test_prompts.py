@@ -16,7 +16,7 @@ def test_registry_loads_all_prompts():
 def test_jd_extraction_renders():
     prompt = PromptRegistry.get("jd_extraction")
     rendered = prompt.render(job_url="https://example.com/job/123", raw_html="<h1>Engineer</h1>")
-    assert "https://example.com/job/123" in rendered.messages[0]["content"]
+    assert "https://example.com/job/123" in rendered.user
     assert len(rendered.system) > 100
 
 
@@ -29,8 +29,8 @@ def test_resume_personalize_renders():
         required_skills=["Python", "FastAPI"],
         job_description="We need a Python engineer...",
     )
-    assert "Jane Doe" in rendered.messages[0]["content"]
-    assert "Acme Corp" in rendered.messages[0]["content"]
+    assert "Jane Doe" in rendered.user
+    assert "Acme Corp" in rendered.user
 
 
 def test_prompt_fingerprint_stable():
