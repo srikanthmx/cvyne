@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
@@ -13,7 +13,7 @@ class ExperienceEntry(BaseModel):
     company: str
     role: str
     start: date
-    end: date | None = None
+    end: Optional[date] = None
     location: str | None = None
     bullets: list[str] = Field(default_factory=list, max_length=10)
 
@@ -36,8 +36,8 @@ class ProjectEntry(BaseModel):
 class CertificationEntry(BaseModel):
     name: str
     issuer: str
-    date: date | None = None
-    url: HttpUrl | None = None
+    date: Optional[date] = None
+    url: Optional[HttpUrl] = None
 
 
 class ResumeSchema(BaseModel):

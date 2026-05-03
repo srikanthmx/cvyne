@@ -8,6 +8,7 @@ Max retries: 3, exponential backoff starting at 60s.
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 from celery import Task
 
@@ -18,7 +19,11 @@ class AsyncTask(Task):
     """Base task class that runs async coroutines in a new event loop."""
 
     def run_async(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
 
 @celery_app.task(
@@ -50,11 +55,103 @@ def process_application_task(
     4. Update DB application record at each step
     """
 
-    async def _run():
-        # TODO (Kiro): load job + resume from DB
-        # TODO (Codex): wire OrchestratorService here
-        # TODO (Kiro): publish events to Redis pub/sub channel f"app:{application_id}"
-        raise NotImplementedError("Task body not yet implemented — see AGENTS.md")
+    async def _run() -> dict:
+        import json
+
+        import redis.asyncio as aioredis
+        from sqlalchemy import select
+
+        from core.config import settings
+        from core.db import async_session_factory
+        from db.models import Application, Job, Resume
+        from models.job import ApplicationStatus, CVTheme
+        from models.resume import ResumeSchema
+        from services.orchestrator import OrchestratorService
+
+        app_uuid = uuid.UUID(application_id)
+        r = aioredis.from_url(settings.redis_url)
+        channel = f"app:{application_id}"
+
+        async def publish(event_json: str) -> None:
+            await r.publish(channel, event_json)
+
+        async with async_session_factory() as db:
+            # Load application
+            app = await db.get(Application, app_uuid)
+            if app is None:
+                raise ValueError(f"Application {application_id} not found")
+
+            # Idempotency: skip if already in a terminal state
+            terminal = {"submitted", "failed", "requires_human"}
+            if app.status in terminal:
+                return {"status": app.status, "skipped": True}
+
+            # Load job and resume
+            job = await db.get(Job, app.job_id)
+            resume_row = await db.get(Resume, app.resume_id)
+            if job is None or resume_row is None:
+                raise ValueError("Job or resume not found")
+
+            # Mark processing
+            app.status = "processing"
+            app.attempts = (app.attempts or 0) + 1
+            await db.commit()
+
+            try:
+                resume = ResumeSchema.model_validate(resume_row.data)
+                cv_theme = CVTheme(theme) if theme else CVTheme.ATS
+                orch = OrchestratorService()
+
+                final_status = "processing"
+                async for event in orch.run_application(
+                    application_id=app_uuid,
+                    job_url=job.url,
+                    base_resume=resume,
+                    user_id=user_id or str(app.user_id),
+                    theme=cv_theme,
+                    generate_cover_letter=generate_cover_letter,
+                ):
+                    event_json = event.model_dump_json()
+                    await publish(event_json)
+
+                    # Update DB status at each step
+                    app.status = event.status.value
+                    final_status = event.status.value
+
+                    if event.status == ApplicationStatus.SUBMITTED:
+                        from datetime import datetime, timezone
+                        app.submitted_at = datetime.now(timezone.utc)
+
+                    if event.error_code:
+                        app.error = event.message
+
+                    await db.commit()
+
+                # Publish terminal sentinel so SSE subscriber knows to close
+                sentinel = json.dumps({"terminal": True, "status": final_status})
+                await publish(sentinel)
+                return {"status": final_status}
+
+            except Exception as exc:
+                app.status = "failed"
+                app.error = str(exc)
+                await db.commit()
+                # Publish failure event
+                import json as _json
+                from models.job import ApplicationStatusEvent
+                err_event = ApplicationStatusEvent(
+                    application_id=app_uuid,
+                    status=ApplicationStatus.FAILED,
+                    step="error",
+                    progress=0,
+                    message=str(exc),
+                    error_code="internal_error",
+                )
+                await publish(err_event.model_dump_json())
+                await publish(_json.dumps({"terminal": True, "status": "failed"}))
+                raise
+            finally:
+                await r.aclose()
 
     return self.run_async(_run())
 
@@ -63,22 +160,74 @@ def process_application_task(
 def retry_failed_applications() -> dict:
     """
     Beat task: find applications with status=failed and attempts<3, re-queue them.
-    Kiro implements: query DB, filter eligible, call process_application_task.delay()
     """
-    # TODO (Kiro): implement
-    return {"requeued": 0}
+
+    async def _run() -> dict:
+        from sqlalchemy import select
+
+        from core.db import async_session_factory
+        from db.models import Application
+
+        requeued = 0
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(Application).where(
+                    Application.status == "failed",
+                    Application.attempts < 3,
+                )
+            )
+            apps = result.scalars().all()
+            for app in apps:
+                process_application_task.delay(
+                    application_id=str(app.id),
+                    job_id=str(app.job_id),
+                    resume_id=str(app.resume_id),
+                    theme=app.theme or "ats",
+                    user_id=str(app.user_id),
+                )
+                requeued += 1
+        return {"requeued": requeued}
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(_run())
+    finally:
+        loop.close()
 
 
 @celery_app.task(name="workers.tasks.extract_jd")
 def extract_jd_task(job_id: str, url: str) -> dict:
     """Extract JD from URL and update job record."""
 
-    async def _run():
-        from agents.browser_agent import BrowserAgent
-        agent = BrowserAgent()
-        jd = await agent.extract_jd(url)
-        # TODO (Kiro): update DB
-        return jd.model_dump()
+    async def _run() -> dict:
+        from core.db import async_session_factory
+        from db.models import Job
+
+        job_uuid = uuid.UUID(job_id)
+
+        async with async_session_factory() as db:
+            job = await db.get(Job, job_uuid)
+            if job is None:
+                raise ValueError(f"Job {job_id} not found")
+
+            job.status = "extracting"
+            await db.commit()
+
+            try:
+                from agents.browser_agent import BrowserAgent
+                agent = BrowserAgent()
+                jd = await agent.extract_jd(url)
+                job.raw_jd = jd.model_dump()
+                job.status = "extracted"
+                await db.commit()
+                return jd.model_dump()
+            except Exception as exc:
+                job.status = "failed"
+                await db.commit()
+                raise
 
     loop = asyncio.new_event_loop()
-    return loop.run_until_complete(_run())
+    try:
+        return loop.run_until_complete(_run())
+    finally:
+        loop.close()

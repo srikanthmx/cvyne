@@ -17,6 +17,12 @@ from routers import applications, jobs, resumes, user_settings
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     setup_telemetry()
+    # Ensure MinIO bucket exists (idempotent)
+    try:
+        from core.storage import ensure_bucket_exists
+        await ensure_bucket_exists()
+    except Exception:
+        pass  # non-fatal in dev if MinIO isn't up yet
     yield
 
 
@@ -50,5 +56,27 @@ async def health() -> JSONResponse:
 
 @app.get("/health/deep")
 async def health_deep() -> JSONResponse:
-    # TODO (Kiro): add DB + Redis connectivity checks
-    return JSONResponse({"status": "ok", "db": "unchecked", "redis": "unchecked"})
+    checks: dict[str, str] = {}
+
+    # DB check
+    try:
+        from sqlalchemy import text
+        from core.db import engine
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["db"] = "ok"
+    except Exception as exc:
+        checks["db"] = f"error: {exc}"
+
+    # Redis check
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.redis_url)
+        await r.ping()
+        await r.aclose()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+
+    status = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
+    return JSONResponse({"status": status, **checks})

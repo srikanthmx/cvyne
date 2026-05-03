@@ -2,26 +2,46 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
-from models.job import ApplicationCreateRequest, ApplicationResponse, ApplicationStatusEvent
+from core.config import settings
+from core.db import get_session
+from db.models import Application
+from models.job import ApplicationCreateRequest, ApplicationResponse, ApplicationStatus
 from workers.tasks import process_application_task
 
 router = APIRouter()
 
+_TERMINAL_STATUSES = {"submitted", "failed", "requires_human"}
+
 
 @router.post("/", response_model=ApplicationResponse, status_code=202)
-async def submit_application(body: ApplicationCreateRequest) -> ApplicationResponse:
+async def submit_application(
+    body: ApplicationCreateRequest,
+    db: AsyncSession = Depends(get_session),
+) -> ApplicationResponse:
     """Queue a job application. Returns immediately; use /stream to follow progress."""
     application_id = uuid.uuid4()
 
-    # Enqueue Celery task (Kiro implements task body)
+    # Persist application record before enqueuing so the task can load it
+    app = Application(
+        id=application_id,
+        user_id=body.job_id,  # placeholder — real auth wires user_id from JWT
+        job_id=body.job_id,
+        resume_id=body.resume_id,
+        theme=body.theme.value,
+        status="queued",
+        attempts=0,
+    )
+    db.add(app)
+    await db.flush()
+
     process_application_task.delay(
         application_id=str(application_id),
         job_id=str(body.job_id),
@@ -34,7 +54,7 @@ async def submit_application(body: ApplicationCreateRequest) -> ApplicationRespo
         id=application_id,
         job_id=body.job_id,
         resume_id=body.resume_id,
-        status="queued",  # type: ignore[arg-type]
+        status=ApplicationStatus.QUEUED,
         attempts=0,
     )
 
@@ -44,30 +64,56 @@ async def stream_status(application_id: uuid.UUID) -> EventSourceResponse:
     """
     SSE stream of ApplicationStatusEvent objects for real-time status updates.
 
-    Event format: { "event": "status_update", "data": "<json>" }
-    Terminates when status is submitted, failed, or requires_human.
+    Subscribes to Redis pub/sub channel app:{application_id}.
+    Terminates when status enters a terminal state.
     """
 
     async def event_generator():
-        # TODO (Codex): subscribe to Redis pub/sub channel for application_id
-        # Placeholder: poll DB until terminal state
-        terminal_statuses = {"submitted", "failed", "requires_human"}
-        max_polls = 120  # 10 min timeout at 5s intervals
+        import redis.asyncio as aioredis
 
-        for _ in range(max_polls):
-            # TODO (Kiro): query DB for current status, yield event
-            await asyncio.sleep(5)
-            # Placeholder event — real implementation reads from DB/Redis
-            yield {
-                "event": "heartbeat",
-                "data": json.dumps({"application_id": str(application_id)}),
-            }
+        r = aioredis.from_url(settings.redis_url)
+        pubsub = r.pubsub()
+        channel = f"app:{application_id}"
+        await pubsub.subscribe(channel)
+
+        try:
+            async for message in pubsub.listen():
+                if message["type"] != "message":
+                    continue
+
+                raw = message["data"]
+                if isinstance(raw, bytes):
+                    raw = raw.decode()
+
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+
+                # Sentinel message — close the stream
+                if data.get("terminal"):
+                    yield {"event": "done", "data": json.dumps({"status": data.get("status")})}
+                    break
+
+                yield {"event": "status_update", "data": raw}
+
+                # Also close on terminal status in the event payload itself
+                if data.get("status") in _TERMINAL_STATUSES:
+                    break
+        finally:
+            await pubsub.unsubscribe(channel)
+            await r.aclose()
 
     return EventSourceResponse(event_generator())
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)
-async def get_application(application_id: uuid.UUID) -> ApplicationResponse:
+async def get_application(
+    application_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+) -> ApplicationResponse:
     """Get current application state."""
-    # TODO (Kiro): query DB
-    raise HTTPException(status_code=404, detail="Application not found")
+    app = await db.get(Application, application_id)
+    if app is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return ApplicationResponse.model_validate(app)
