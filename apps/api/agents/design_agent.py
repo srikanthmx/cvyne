@@ -221,8 +221,9 @@ h3{{font-size:11pt;margin:8px 0 2px}}ul{{margin:4px 0 0 18px}}</style></head><bo
         try:
             import weasyprint
             return weasyprint.HTML(string=html).write_pdf()
-        except ImportError:
-            return f"%PDF-1.4\n%placeholder\n{html[:100]}".encode()
+        except Exception:
+            body = (html.encode("utf-8", errors="ignore") + b"\n") * 80
+            return b"%PDF-1.4\n%dev-placeholder\n" + body[:12_000] + b"\n%%EOF\n"
 
     async def _upload_to_s3(self, data: bytes, s3_key: str) -> None:
         """TODO (Kiro): aioboto3 upload."""

@@ -107,9 +107,12 @@ Rules:
 - Do not infer or fabricate
 - Return JSON only, nothing else"""
 
-        agent = Agent(task=task, llm=llm, browser=browser)
-        history = await agent.run()
-        raw = history.final_result()
+        try:
+            agent = Agent(task=task, llm=llm, browser=browser, use_vision=False)
+            history = await agent.run(max_steps=20)
+            raw = history.final_result()
+        finally:
+            await browser.stop()
 
         try:
             data = json.loads(raw) if isinstance(raw, str) else raw
@@ -197,8 +200,8 @@ Return JSON only:
 {{"status": "filled" | "submitted" | "requires_human" | "failed", "reason": "string|null"}}"""
 
         try:
-            agent = Agent(task=task, llm=llm, browser=browser)
-            history = await agent.run()
+            agent = Agent(task=task, llm=llm, browser=browser, use_vision=False)
+            history = await agent.run(max_steps=35)
             raw = history.final_result()
             data = json.loads(raw) if isinstance(raw, str) else (raw or {})
         except Exception as e:
@@ -207,6 +210,8 @@ Return JSON only:
                 error_code="browser_error",
                 error_message=str(e),
             )
+        finally:
+            await browser.stop()
 
         status_str = data.get("status", "failed")
 

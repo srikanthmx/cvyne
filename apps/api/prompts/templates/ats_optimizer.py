@@ -5,7 +5,7 @@ from prompts.registry import PromptRegistry, PromptTemplate
 PromptRegistry.register(
     PromptTemplate(
         name="ats_optimize",
-        version="v1.0.0",
+        version="v1.1.0",
         temperature=0.1,
         system_template="""You are an ATS (Applicant Tracking System) optimization expert.
 
@@ -17,6 +17,8 @@ ATS rules to enforce:
 - Bullet points start with strong action verbs
 - No special characters except hyphens and periods
 - File-safe characters only
+- Keep JSON schema fields intact; do not drop optional sections that contain source content
+- Only include JD keywords when they already match resume evidence
 
 Do not change meaning — only structure and formatting.""",
         user_template="""Resume to optimize:

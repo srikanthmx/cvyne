@@ -91,27 +91,38 @@ class LLMClient:
         self.model = model or DEFAULT_MODELS[provider]
         self.fallbacks = fallbacks or DEFAULT_FALLBACKS
         self._instructor = instructor.from_litellm(litellm.acompletion)
+        self._last_response: object | None = None
 
     @classmethod
     async def from_user_config(
         cls, user_id: str, provider: LLMProvider | None = None
-    ) -> "LLMClient":
+    ) -> LLMClient:
         """Load user's encrypted API key from DB and instantiate."""
-        # TODO (Kiro): query api_keys table, decrypt with core.security.decrypt_api_key
-        from core.db import async_session_factory
-        from core.security import decrypt_api_key
-        from db.models import ApiKey  # noqa: F401  -- Kiro to define
-        # Pseudocode:
-        # async with async_session_factory() as db:
-        #     stmt = select(ApiKey).where(ApiKey.user_id == user_id, ApiKey.is_active == True)
-        #     if provider: stmt = stmt.where(ApiKey.provider == provider)
-        #     row = (await db.execute(stmt)).scalar_one()
-        # key = decrypt_api_key(row.encrypted_key, settings.encryption_key)
-        # return cls(provider=row.provider, api_key=key)
-        raise NotImplementedError("Wire to DB once Kiro lands the api_keys model")
+        try:
+            from sqlalchemy import select
+
+            from core.db import async_session_factory
+            from core.security import decrypt_api_key
+            from db.models import ApiKey
+        except ImportError as exc:
+            raise RuntimeError(
+                "DB-backed LLM user config is unavailable until Kiro's DB/security layer is present"
+            ) from exc
+
+        async with async_session_factory() as db:
+            stmt = select(ApiKey).where(ApiKey.user_id == user_id, ApiKey.is_active.is_(True))
+            if provider is not None:
+                stmt = stmt.where(ApiKey.provider == provider.value)
+            row = (await db.execute(stmt)).scalars().first()
+
+        if row is None:
+            raise ValueError(f"No active API key for user {user_id}")
+
+        plaintext = decrypt_api_key(row.encrypted_key, settings.encryption_key)
+        return cls(provider=LLMProvider(row.provider), api_key=plaintext)
 
     @classmethod
-    def from_env(cls, provider: LLMProvider = LLMProvider.ANTHROPIC) -> "LLMClient":
+    def from_env(cls, provider: LLMProvider = LLMProvider.ANTHROPIC) -> LLMClient:
         """Dev convenience — loads key from env."""
         import os
         keys = {
@@ -128,6 +139,7 @@ class LLMClient:
         structured_output: type[T] | None = None,
     ) -> T | str:
         """Non-streaming completion. Returns parsed Pydantic model or raw text."""
+        self._last_response = None
         messages = self._build_messages(prompt)
         kwargs: dict[str, Any] = {
             "model": prompt.model or self.model,
@@ -140,11 +152,14 @@ class LLMClient:
         }
 
         if structured_output:
-            return await self._instructor.chat.completions.create(
+            result, completion = await self._instructor.chat.completions.create_with_completion(
                 response_model=structured_output, **kwargs
             )
+            self._record_response(completion)
+            return result
 
         response = await litellm.acompletion(**kwargs)
+        self._record_response(response)
         return response.choices[0].message.content or ""
 
     async def stream(self, prompt: RenderedPrompt) -> AsyncIterator[str]:
@@ -187,3 +202,44 @@ class LLMClient:
             {"role": "system", "content": prompt.system},
             {"role": "user", "content": prompt.user},
         ]
+
+    @property
+    def last_response(self) -> object | None:
+        """Raw provider response from the most recent non-streaming completion."""
+        return self._last_response
+
+    @property
+    def last_hidden_params(self) -> dict[str, Any]:
+        """LiteLLM metadata for tests/telemetry, including response cost and cache counters."""
+        if self._last_response is None:
+            return {}
+        hidden = getattr(self._last_response, "_hidden_params", None)
+        return hidden if isinstance(hidden, dict) else {}
+
+    def _record_response(self, response: object | None) -> None:
+        """Keep the raw response and normalize useful LiteLLM/provider metadata."""
+        self._last_response = response
+        if response is None:
+            return
+
+        hidden = getattr(response, "_hidden_params", None)
+        if not isinstance(hidden, dict):
+            hidden = {}
+            try:
+                setattr(response, "_hidden_params", hidden)
+            except Exception:
+                return
+
+        usage = getattr(response, "usage", None)
+        usage_items = usage if isinstance(usage, dict) else getattr(usage, "__dict__", {})
+        if isinstance(usage_items, dict):
+            cache_read = usage_items.get("cache_read_input_tokens") or usage_items.get(
+                "prompt_cache_hit_tokens"
+            )
+            cache_creation = usage_items.get("cache_creation_input_tokens") or usage_items.get(
+                "prompt_cache_miss_tokens"
+            )
+            if cache_read is not None:
+                hidden.setdefault("prompt_cache_hit_tokens", cache_read)
+            if cache_creation is not None:
+                hidden.setdefault("prompt_cache_miss_tokens", cache_creation)

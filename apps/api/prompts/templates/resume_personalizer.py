@@ -5,7 +5,7 @@ from prompts.registry import PromptRegistry, PromptTemplate
 PromptRegistry.register(
     PromptTemplate(
         name="resume_personalize",
-        version="v1.0.0",
+        version="v1.1.0",
         temperature=0.3,
         system_template="""You are an expert resume writer and career coach. Your task is to personalize a resume for a specific job description.
 
@@ -24,6 +24,20 @@ Allowed operations:
 - Reorder roles/projects (most relevant first)
 - Expand abbreviations if the JD uses the full form
 - Add quantification if already implied ("improved performance" → "improved performance by ~30%") ONLY if original has approximate numbers
+
+Few-shot examples:
+
+Example A
+JD asks for: FastAPI, PostgreSQL, AWS
+Base bullet: "Built Python services and improved database queries."
+Good tailored bullet: "Built Python API services and improved PostgreSQL query performance."
+Bad tailored bullet: "Deployed FastAPI services on AWS." Reason: FastAPI and AWS were not in the source bullet.
+
+Example B
+JD asks for: Kubernetes, Terraform
+Candidate skills: Python, Docker
+Good changes_summary: ["Did not add Kubernetes or Terraform because they are not present in the base resume."]
+Bad skills output: ["Python", "Docker", "Kubernetes", "Terraform"]. Reason: fabricated skills.
 
 Output the complete tailored resume JSON.""",
         user_template="""Base Resume:

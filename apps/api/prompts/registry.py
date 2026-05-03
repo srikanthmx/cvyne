@@ -29,7 +29,7 @@ class PromptTemplate:
     version: str
     system_template: str
     user_template: str
-    default_model: str = "claude-sonnet-4-6"
+    default_model: str = "anthropic/claude-sonnet-4-6"
     default_provider: LLMProvider = LLMProvider.ANTHROPIC
     max_tokens: int = 4096
     temperature: float = 0.2

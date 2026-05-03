@@ -5,7 +5,7 @@ from prompts.registry import PromptRegistry, PromptTemplate
 PromptRegistry.register(
     PromptTemplate(
         name="cover_letter",
-        version="v1.0.0",
+        version="v1.1.0",
         temperature=0.5,
         system_template="""You are a professional cover letter writer. Write compelling, authentic cover letters.
 
@@ -16,6 +16,7 @@ Rules:
 - Closing: clear call to action, no clichés
 - Tone: confident but not arrogant, genuine not generic
 - Never fabricate achievements not in the resume
+- If a requirement has no matching resume evidence, do not claim it
 - Do not use: "I am writing to express", "To whom it may concern", "I believe I am a great fit"
 - Do not summarize the resume — complement it""",
         user_template="""Resume (key highlights):

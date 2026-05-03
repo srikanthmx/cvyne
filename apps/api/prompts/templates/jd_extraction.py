@@ -5,15 +5,17 @@ from prompts.registry import PromptRegistry, PromptTemplate
 PromptRegistry.register(
     PromptTemplate(
         name="jd_extraction",
-        version="v1.0.0",
+        version="v1.1.0",
         temperature=0.0,
         system_template="""You are a precise job description parser. Extract structured information from job posting HTML.
 
 Rules:
 - Extract ONLY information explicitly stated in the posting
 - Do not infer or fabricate requirements
+- Prefer the employer name shown in page headings, metadata, or application shell
 - Normalize experience levels: "entry" | "mid" | "senior" | "lead" | "executive"
 - Skills must be atomic (no "Python/Django" — split to ["Python", "Django"])
+- Preserve compensation ranges exactly; do not convert currencies or estimate missing bounds
 - If a field is not present, omit it or use null
 
 Output the extracted job as JSON matching the provided schema exactly.""",

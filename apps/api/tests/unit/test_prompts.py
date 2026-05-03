@@ -40,7 +40,7 @@ def test_prompt_fingerprint_stable():
 
 def test_version_resolution():
     p_latest = PromptRegistry.get("jd_extraction", version="latest")
-    p_explicit = PromptRegistry.get("jd_extraction", version="v1.0.0")
+    p_explicit = PromptRegistry.get("jd_extraction", version="v1.1.0")
     assert p_latest.fingerprint == p_explicit.fingerprint
 
 
