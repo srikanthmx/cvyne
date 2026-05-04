@@ -1,27 +1,42 @@
 "use client";
-
-// TODO (Antigravity): implement full job URL input with bulk paste support
-// See docs/agents/ANTIGRAVITY.md for spec
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useExtractJob } from "@/hooks/useJobs";
+import { Sparkles, Loader2 } from "lucide-react";
 
 export function JobUrlInput() {
+  const [urls, setUrls] = useState("");
+  const extractMutation = useExtractJob();
+
+  const handleExtract = () => {
+    const list = urls.split("\n").map(u => u.trim()).filter(u => u);
+    list.forEach(url => extractMutation.mutate(url));
+    setUrls("");
+  };
+
   return (
-    <div className="rounded-lg border border-border p-4 space-y-3">
-      <label htmlFor="job-urls" className="text-sm font-medium">
-        Paste job URLs <span className="text-muted-foreground">(one per line)</span>
-      </label>
-      <textarea
-        id="job-urls"
-        rows={4}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm resize-none
-          placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-        placeholder="https://linkedin.com/jobs/view/...&#10;https://greenhouse.io/..."
+    <div className="space-y-4">
+      <Textarea
+        placeholder="Paste job URLs here (one per line)..."
+        className="min-h-[120px] font-mono text-sm bg-muted/20"
+        value={urls}
+        onChange={(e) => setUrls(e.target.value)}
       />
-      <button
-        type="button"
-        className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
-      >
-        Extract &amp; Apply
-      </button>
+      <div className="flex justify-end">
+        <Button 
+          onClick={handleExtract} 
+          disabled={!urls.trim() || extractMutation.isPending}
+          className="w-full sm:w-auto transition-all"
+        >
+          {extractMutation.isPending ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4 mr-2 text-yellow-400" />
+          )}
+          Extract & Apply
+        </Button>
+      </div>
     </div>
   );
 }

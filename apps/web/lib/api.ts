@@ -18,8 +18,8 @@ export const api = createClient<paths>({
 api.use({
   async onRequest({ request }) {
     if (typeof window !== "undefined") {
-      const { getToken } = await import("@clerk/nextjs/client");
-      const token = await getToken();
+      // @ts-ignore
+      const token = await window.Clerk?.session?.getToken();
       if (token) request.headers.set("Authorization", `Bearer ${token}`);
     }
     return request;
@@ -44,15 +44,18 @@ export const resumesApi = {
     return api.POST("/api/v1/resumes/parse", { body: formData as never });
   },
 
-  create: (body: Parameters<typeof api.POST<"/api/v1/resumes/">>[1]["body"]) =>
+  create: (body: any) =>
     api.POST("/api/v1/resumes/", { body }),
 
   get: (id: string) =>
     api.GET("/api/v1/resumes/{resume_id}", { params: { path: { resume_id: id } } }),
+
+  list: () =>
+    api.GET("/api/v1/resumes/" as any, {}),
 };
 
 export const applicationsApi = {
-  submit: (body: Parameters<typeof api.POST<"/api/v1/applications/">>[1]["body"]) =>
+  submit: (body: any) =>
     api.POST("/api/v1/applications/", { body }),
 
   streamStatus: (id: string): EventSource =>
@@ -60,7 +63,7 @@ export const applicationsApi = {
 };
 
 export const settingsApi = {
-  saveApiKey: (body: Parameters<typeof api.POST<"/api/v1/settings/api-keys">>[1]["body"]) =>
+  saveApiKey: (body: any) =>
     api.POST("/api/v1/settings/api-keys", { body }),
 
   listApiKeys: () =>
