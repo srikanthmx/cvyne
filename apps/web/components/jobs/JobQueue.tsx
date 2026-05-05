@@ -1,10 +1,10 @@
 "use client";
+import Link from "next/link";
 import { useJobsList, useJobStatus, type OptimisticJob } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Play, AlertCircle, CheckCircle2 } from "lucide-react";
-import Image from "next/image";
 
 function getDomain(url: string) {
   try {
@@ -60,9 +60,11 @@ function JobRow({ job }: { job: OptimisticJob }) {
 
         <div className="shrink-0 flex items-center gap-2">
           {job.status === "extracted" && (
-            <Button size="sm" className="shadow-sm">
-              <Play className="w-4 h-4 mr-1.5" /> Generate CV & Apply
-            </Button>
+            <Link href={`/dashboard/apply/${job.id}`}>
+              <Button size="sm" className="shadow-sm">
+                <Play className="w-4 h-4 mr-1.5" /> Generate CV & Apply
+              </Button>
+            </Link>
           )}
           {job.status === "failed" && (
             <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">

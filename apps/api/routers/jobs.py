@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_session
@@ -13,6 +14,28 @@ from models.job import JobCreateRequest, JobResponse, JobStatus
 from services.jd_extractor import JDExtractorService
 
 router = APIRouter()
+
+# Placeholder until Clerk JWT extraction lands
+_PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+
+@router.get("/", response_model=list[JobResponse])
+async def list_jobs(
+    db: AsyncSession = Depends(get_session),
+    limit: int = 50,
+) -> list[JobResponse]:
+    """List the current user's jobs, newest first."""
+    result = await db.execute(
+        select(Job)
+        .where(Job.user_id == _PLACEHOLDER_USER_ID)
+        .order_by(desc(Job.created_at))
+        .limit(limit)
+    )
+    rows = result.scalars().all()
+    return [
+        JobResponse(id=r.id, url=r.url, status=JobStatus(r.status), jd=r.raw_jd)
+        for r in rows
+    ]
 
 
 @router.post("/extract", response_model=JobResponse, status_code=202)

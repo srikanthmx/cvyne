@@ -24,6 +24,7 @@ class ApplicationStatus(StrEnum):
     SUBMITTED = "submitted"
     FAILED = "failed"
     REQUIRES_HUMAN = "requires_human"
+    CANCELLED = "cancelled"
 
 
 class CVTheme(StrEnum):

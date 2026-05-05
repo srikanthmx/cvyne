@@ -45,11 +45,52 @@ class BrowserAgent:
         api_key: str | None = None,
         model: str | None = None,
         headless: bool = True,
+        application_id: str | None = None,
+        redis_url: str | None = None,
     ) -> None:
         self._provider = provider
         self._api_key = api_key
         self._model = model
         self._headless = headless
+        # When application_id + redis_url are set, the agent publishes per-step
+        # screenshots to the channel app:{application_id} so the frontend can
+        # render a live "agent's-eye view" of what the browser is doing.
+        self._application_id = application_id
+        self._redis_url = redis_url
+
+    def _build_step_screenshot_callback(self):
+        """
+        Hook into browser-use's per-step callback to publish screenshots.
+        Returns None when there's no application_id — agent runs normally.
+        """
+        if not (self._application_id and self._redis_url):
+            return None
+
+        import json
+        import redis.asyncio as aioredis
+
+        channel = f"app:{self._application_id}"
+        redis_url = self._redis_url
+
+        async def on_step(state, agent_output, step_num):
+            screenshot_b64 = getattr(state, "screenshot", None)
+            if not screenshot_b64:
+                return
+            payload = {
+                "application_id": str(self._application_id),
+                "kind": "screenshot",
+                "step": step_num,
+                "screenshot_b64": screenshot_b64,
+                "url": getattr(state, "url", None),
+                "title": getattr(state, "title", None),
+            }
+            r = aioredis.from_url(redis_url)
+            try:
+                await r.publish(channel, json.dumps(payload))
+            finally:
+                await r.aclose()
+
+        return on_step
 
     def _build_llm(self):
         """Build a browser-use compatible LLM client. Never use LangChain wrappers."""
@@ -108,7 +149,13 @@ Rules:
 - Return JSON only, nothing else"""
 
         try:
-            agent = Agent(task=task, llm=llm, browser=browser, use_vision=False)
+            agent = Agent(
+                task=task,
+                llm=llm,
+                browser=browser,
+                use_vision=False,
+                register_new_step_callback=self._build_step_screenshot_callback(),
+            )
             history = await agent.run(max_steps=20)
             raw = history.final_result()
         finally:
@@ -200,7 +247,13 @@ Return JSON only:
 {{"status": "filled" | "submitted" | "requires_human" | "failed", "reason": "string|null"}}"""
 
         try:
-            agent = Agent(task=task, llm=llm, browser=browser, use_vision=False)
+            agent = Agent(
+                task=task,
+                llm=llm,
+                browser=browser,
+                use_vision=False,
+                register_new_step_callback=self._build_step_screenshot_callback(),
+            )
             history = await agent.run(max_steps=35)
             raw = history.final_result()
             data = json.loads(raw) if isinstance(raw, str) else (raw or {})

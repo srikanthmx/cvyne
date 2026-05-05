@@ -8,12 +8,17 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "start": "./run.sh",
+    "setup": "./run.sh --setup",
+    "stop": "./run.sh --stop",
+    "infra": "./run.sh --infra-only",
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "format": "turbo format",
     "type-check": "turbo type-check",
     "test": "turbo test",
+    "types:gen": "pnpm --filter shared-types generate",
     "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {

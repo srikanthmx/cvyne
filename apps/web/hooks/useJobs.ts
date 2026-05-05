@@ -76,8 +76,10 @@ export function useJobStatus(jobId: string | null, enabled: boolean = true) {
     enabled: !!jobId && enabled,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === "extracted" || status === "failed") return false;
-      return 2000; // Poll every 2s
+      if (!status || status === "extracted" || status === "failed") return false;
+      // Stop after 60 polls (~2 min) to prevent runaway polling
+      if ((query.state.dataUpdateCount ?? 0) > 60) return false;
+      return 2000;
     },
   });
 }

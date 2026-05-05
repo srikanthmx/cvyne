@@ -4,9 +4,10 @@ export type ApplicationItem = {
   id: string;
   company: string;
   role: string;
-  status: "queued" | "processing" | "submitted" | "failed" | "requires_human";
+  status: "queued" | "processing" | "generating_cv" | "filling_form" | "submitted" | "failed" | "requires_human" | "cancelled";
   date: string;
   cv_url?: string;
+  job_url?: string;
 };
 
 export function useApplicationsList() {
@@ -14,23 +15,7 @@ export function useApplicationsList() {
     queryKey: ["applications"],
     queryFn: async (): Promise<ApplicationItem[]> => {
       // Placeholder until GET /api/v1/applications/ is fully exposed
-      return [
-        {
-          id: "mock-1",
-          company: "Vercel",
-          role: "Frontend Engineer",
-          status: "submitted",
-          date: new Date(Date.now() - 86400000).toISOString(),
-          cv_url: "#",
-        },
-        {
-          id: "mock-2",
-          company: "Stripe",
-          role: "Product Engineer",
-          status: "failed",
-          date: new Date(Date.now() - 172800000).toISOString(),
-        },
-      ];
+      return [];
     },
   });
 }

@@ -31,7 +31,6 @@ class AsyncTask(Task):
     base=AsyncTask,
     max_retries=3,
     default_retry_delay=60,
-    autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=300,
     name="workers.tasks.process_application",
@@ -82,7 +81,7 @@ def process_application_task(
                 raise ValueError(f"Application {application_id} not found")
 
             # Idempotency: skip if already in a terminal state
-            terminal = {"submitted", "failed", "requires_human"}
+            terminal = {"submitted", "failed", "requires_human", "cancelled"}
             if app.status in terminal:
                 return {"status": app.status, "skipped": True}
 
@@ -92,7 +91,6 @@ def process_application_task(
             if job is None or resume_row is None:
                 raise ValueError("Job or resume not found")
 
-            # Mark processing
             app.status = "processing"
             app.attempts = (app.attempts or 0) + 1
             await db.commit()
@@ -111,6 +109,11 @@ def process_application_task(
                     theme=cv_theme,
                     generate_cover_letter=generate_cover_letter,
                 ):
+                    # Check if cancelled mid-run
+                    await db.refresh(app)
+                    if app.status == "cancelled":
+                        return {"status": "cancelled", "skipped": True}
+
                     event_json = event.model_dump_json()
                     await publish(event_json)
 
@@ -154,45 +157,6 @@ def process_application_task(
                 await r.aclose()
 
     return self.run_async(_run())
-
-
-@celery_app.task(name="workers.tasks.retry_failed_applications")
-def retry_failed_applications() -> dict:
-    """
-    Beat task: find applications with status=failed and attempts<3, re-queue them.
-    """
-
-    async def _run() -> dict:
-        from sqlalchemy import select
-
-        from core.db import async_session_factory
-        from db.models import Application
-
-        requeued = 0
-        async with async_session_factory() as db:
-            result = await db.execute(
-                select(Application).where(
-                    Application.status == "failed",
-                    Application.attempts < 3,
-                )
-            )
-            apps = result.scalars().all()
-            for app in apps:
-                process_application_task.delay(
-                    application_id=str(app.id),
-                    job_id=str(app.job_id),
-                    resume_id=str(app.resume_id),
-                    theme=app.theme or "ats",
-                    user_id=str(app.user_id),
-                )
-                requeued += 1
-        return {"requeued": requeued}
-
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(_run())
-    finally:
-        loop.close()
 
 
 @celery_app.task(name="workers.tasks.extract_jd")

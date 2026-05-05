@@ -31,6 +31,7 @@ class FileRef:
     mime_type: str
     size_bytes: int | None = None
     presigned_url: str | None = None
+    pdf_bytes: bytes | None = None  # populated for preview / inline rendering
 
 
 # Map our themes → open-design design system identifiers
@@ -166,6 +167,7 @@ class DesignAgent:
             filename=f"cv_{theme.value}.pdf",
             mime_type="application/pdf",
             size_bytes=len(pdf_bytes),
+            pdf_bytes=pdf_bytes,
         )
 
     def _build_resume_prompt(self, resume: TailoredResumeSchema, theme: CVTheme) -> str:

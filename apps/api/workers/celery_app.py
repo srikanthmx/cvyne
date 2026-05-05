@@ -25,9 +25,4 @@ celery_app.conf.update(
 )
 
 # Beat schedule: retry failed applications every 5 minutes
-celery_app.conf.beat_schedule = {
-    "retry-failed-applications": {
-        "task": "workers.tasks.retry_failed_applications",
-        "schedule": 300.0,  # 5 minutes
-    },
-}
+celery_app.conf.beat_schedule = {}  # No automatic retries — user triggers retry manually

@@ -90,7 +90,20 @@ class OrchestratorService:
         cv_file = await self._design.generate_cv(tailored, theme, str(application_id), user_id)
 
         yield event(ApplicationStatus.FILLING_FORM, "form_autofill", 85)
-        result = await self._browser.autofill_form(
+
+        # Re-instantiate the browser agent with application_id wiring so it
+        # publishes per-step screenshots to Redis pub/sub. The frontend's SSE
+        # stream picks these up and renders a live "agent's-eye view".
+        from core.config import settings
+        browser_for_form = BrowserAgent(
+            provider=self._browser._provider,
+            api_key=self._browser._api_key,
+            model=self._browser._model,
+            headless=self._browser._headless,
+            application_id=str(application_id),
+            redis_url=settings.redis_url,
+        )
+        result = await browser_for_form.autofill_form(
             url=job_url,
             resume=tailored,
             cv_file_path=cv_file.s3_key,

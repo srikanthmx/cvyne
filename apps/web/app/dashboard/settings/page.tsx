@@ -30,7 +30,7 @@ export default function SettingsPage() {
 
   const handleSaveKey = () => {
     if (!apiKey.trim()) return;
-    saveKeyMutation.mutate({ provider, key: apiKey.trim() }, {
+    saveKeyMutation.mutate({ provider, api_key: apiKey.trim() }, {
       onSuccess: () => setApiKey("") // Clear field on success for security
     });
   };

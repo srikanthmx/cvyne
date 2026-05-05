@@ -93,6 +93,7 @@ class Application(Base):
             "submitted",
             "failed",
             "requires_human",
+            "cancelled",
             name="application_status",
         ),
         nullable=False,

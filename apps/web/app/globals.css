@@ -1,23 +1,19 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "../node_modules/tw-animate-css/dist/tw-animate.css";
+@import "../node_modules/shadcn/dist/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Tokens are defined in :root (light) and .dark (dark) below.
+   The @theme inline block further down maps Tailwind color utilities to those tokens.
+   Keeping a single source of truth (the CSS variables) avoids drift between
+   theme colors and shadcn component colors. */
 @theme {
-  --color-background: oklch(0.99 0 0);
-  --color-foreground: oklch(0.13 0.02 260);
-  --color-primary: oklch(0.55 0.22 265);
-  --color-primary-foreground: oklch(0.99 0 0);
-  --color-muted: oklch(0.96 0.005 260);
-  --color-muted-foreground: oklch(0.55 0.02 260);
-  --color-border: oklch(0.91 0.005 260);
   --color-success: oklch(0.65 0.18 145);
   --color-warning: oklch(0.75 0.18 70);
   --color-destructive: oklch(0.60 0.22 25);
 
   --radius: 0.5rem;
-  --font-sans: var(--font-inter), system-ui, sans-serif;
 }
 
 @layer base {

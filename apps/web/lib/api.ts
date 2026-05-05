@@ -58,6 +58,15 @@ export const applicationsApi = {
   submit: (body: any) =>
     api.POST("/api/v1/applications/", { body }),
 
+  get: (id: string) =>
+    api.GET("/api/v1/applications/{application_id}" as any, { params: { path: { application_id: id } } }),
+
+  cancel: (id: string) =>
+    api.POST("/api/v1/applications/{application_id}/cancel" as any, { params: { path: { application_id: id } } }),
+
+  retry: (id: string) =>
+    api.POST("/api/v1/applications/{application_id}/retry" as any, { params: { path: { application_id: id } } }),
+
   streamStatus: (id: string): EventSource =>
     new EventSource(`${BASE_URL}/api/v1/applications/${id}/stream`),
 };

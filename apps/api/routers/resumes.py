@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_session
@@ -42,6 +43,28 @@ async def parse_resume_upload(file: UploadFile = File(...)) -> ResumeSchema:
         return await parser.parse_file(tmp_path)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+@router.get("/", response_model=list[ResumeResponse])
+async def list_resumes(
+    db: AsyncSession = Depends(get_session),
+) -> list[ResumeResponse]:
+    """List the current user's resumes (base resume first, then by recency)."""
+    result = await db.execute(
+        select(Resume)
+        .where(Resume.user_id == _PLACEHOLDER_USER_ID)
+        .order_by(desc(Resume.is_base), desc(Resume.created_at))
+    )
+    rows = result.scalars().all()
+    return [
+        ResumeResponse(
+            id=r.id,
+            name=r.name,
+            data=ResumeSchema.model_validate(r.data),
+            is_base=r.is_base,
+        )
+        for r in rows
+    ]
 
 
 @router.post("/", response_model=ResumeResponse, status_code=201)
